@@ -46,6 +46,7 @@ class AuthenticatedCIPAPISession(requests.Session):
             self.headers.update({"Authorization": "JWT " + token})
             self.auth_time = datetime.fromtimestamp(decoded_token['orig_iat'])
             self.auth_expires = datetime.fromtimestamp(decoded_token['exp'])
+            self.username = decoded_token['username']
         except (InvalidTokenError, DecodeError, ExpiredSignatureError, KeyError):
             self.auth_time = False
             raise Exception('Invalid or expired JWT token')
@@ -88,6 +89,7 @@ class AuthenticatedCIPAPISession(requests.Session):
             self.headers.update({"Authorization": "JWT " + token})
             self.auth_time = datetime.fromtimestamp(decoded_token['orig_iat'])
             self.auth_expires = datetime.fromtimestamp(decoded_token['exp'])
+            self.username = decoded_token['username']
         except KeyError:
             self.auth_time = False
             raise Exception('Authentication Error')
