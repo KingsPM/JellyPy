@@ -8,7 +8,7 @@ def close_case(_irvn, token):
     """
     :param _irvn: IR & version number. Format is ir-vn
     :param token: JWT token
-    :return: json response from flask API. If CR post is sucessful, it returns the clinical report in JSON format,
+    :return: json response from flask API. If CR post is successful, it returns the clinical report in JSON format,
     otherwise it returns reason for error
     """
 
@@ -33,7 +33,7 @@ def close_case(_irvn, token):
 
 if __name__ == '__main__':
 
-    token = 'gdgdggr.4534534dg.dfgdfgdgf'
-    _irvn = '79-1'
+    _irvn = '\d{2}-\d{1}'
+    token = '<JWT token>'
 
     pp.pprint(close_case(_irvn, token))
