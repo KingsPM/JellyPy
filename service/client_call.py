@@ -2,8 +2,6 @@ import requests
 import json
 import pprint as pp
 
-token = '<JWT token>'
-
 
 def close_case(_irvn, token):
 
@@ -33,4 +31,9 @@ def close_case(_irvn, token):
     return r.json()
 
 
-pp.pprint(close_case('79-1', token))
+if __name__ == '__main__':
+
+    token = 'gdgdggr.4534534dg.dfgdfgdgf'
+    _irvn = '79-1'
+
+    pp.pprint(close_case(_irvn, token))

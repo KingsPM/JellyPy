@@ -47,7 +47,7 @@ def api_message(_irvn):
         decoded_token = jwt.decode(auth_token, verify=False)
         username = decoded_token['username']
     except (InvalidTokenError, DecodeError, ExpiredSignatureError, KeyError) as e:
-        return jsonify({'detail': str(e)})
+        return jsonify({'detail': 'JWT token decode error:' + str(e)})
     except:
         raise
 
