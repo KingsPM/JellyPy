@@ -69,15 +69,21 @@ def api_message(_irvn):
         return jsonify({'detail': str(e)})
 
     # Check that an clinical report hasn't already been submitted
-    if num_existing_reports(ir_json_v6):
-        return jsonify({'detail': '{} existing clinical reports detected for interpretation request: {}'
-                       .format(num_existing_reports(ir_json_v6), _irvn)})
+    try:
+        if num_existing_reports(ir_json_v6):
+            return jsonify({'detail': '{} existing clinical reports detected for interpretation request: {}'
+                           .format(num_existing_reports(ir_json_v6), _irvn)})
+    except Exception as e:
+        return jsonify({'detail': str(e)})
 
     # Check there genuinely aren't any tier 1 or 2 variants for this IR
-    number_variants = number_tiered_variants(ir_json_v6)
-    if number_variants['T1'] != 0 or number_variants['T2'] != 0:
-        return jsonify({'detail': 'Cannot close case as there are tier 1 and/or tier 2 variants present: {}'
-                       .format(number_variants)})
+    try:
+        number_variants = number_tiered_variants(ir_json_v6)
+        if number_variants['T1'] != 0 or number_variants['T2'] != 0:
+            return jsonify({'detail': 'Cannot close case as there are tier 1 and/or tier 2 variants present: {}'
+                           .format(number_variants)})
+    except Exception as e:
+        return jsonify({'detail': str(e)})
 
     # Create clinical report object
     try:
