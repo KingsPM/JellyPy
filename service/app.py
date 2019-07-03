@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from flask import Flask, request, jsonify
 import re
+from datetime import datetime
 from pyCIPAPI.interpretation_requests import get_interpretation_request_json
 from pyCIPAPI.summary_findings import create_cr, post_cr, num_existing_reports, get_ref_db_versions, \
     gel_software_versions, number_tiered_variants
@@ -8,6 +9,7 @@ import jwt
 from jwt.exceptions import InvalidTokenError, DecodeError, ExpiredSignatureError
 
 app = Flask(__name__)
+
 
 # root
 @app.route('/')
@@ -20,53 +22,85 @@ def api_message(_irvn):
 
     # check format of id request:
     if not bool(re.match(r"^\d+-\d+$", _irvn)):
-        return jsonify('Invalid request id & request_version: %s' % _irvn)
+        return jsonify({'detail': 'Invalid request id & request_version: %s' % _irvn})
     else:
         ir_id, ir_version = _irvn.split('-')
 
-    # Get IR data
-    ir_json_v6 = get_interpretation_request_json(ir_id, ir_version,
-                                                 token=request.headers['auth_token'],
-                                                 reports_v6=True,
-                                                 testing_on=request.json['testing_on'])
-
-    # Check that an clinical report hasn't already been submitted
-    if num_existing_reports(ir_json_v6):
-        return jsonify('%s existing clinical reports detected for interpretation request: %s'
-                       % (num_existing_reports(ir_json_v6), _irvn))
-
-    # Check there really aren't any tier 1 or 2 variants for this IR
-    number_variants =  number_tiered_variants(ir_json_v6)
-    if number_variants['T1'] != 0 or number_variants['T2'] != 0:
-        return jsonify('Cannot automatically close case as there are tier 1 and/or tier 2 variants present: %s'
-                       % number_variants)
-
-    # Get authenticated user from decoded token
+    # Check required header data
     try:
-        decoded_token = jwt.decode(request.headers['auth_token'], verify=False)
-        username = decoded_token['username']
-    except (InvalidTokenError, DecodeError, ExpiredSignatureError, KeyError) as e:
-        raise jsonify(e)
+        auth_token = request.headers['x-passtoken-cipapi']
+    except KeyError:
+        return jsonify({'detail': 'Missing CIP API authorisation token'})
     except:
         raise
 
+    # Check if reportingDate provided
+    try:
+        reportingDate = request.json['reportingDate']
+    except KeyError:
+        reportingDate = datetime.today().strftime("%Y-%m-%d")
+    except:
+        raise
+
+    # Get authenticated user from decoded token
+    try:
+        decoded_token = jwt.decode(auth_token, verify=False)
+        username = decoded_token['username']
+    except (InvalidTokenError, DecodeError, ExpiredSignatureError, KeyError) as e:
+        return jsonify({'detail': str(e)})
+    except:
+        raise
+
+    # Get testing_on status (if present)
+    try:
+        testing_on = request.json['testing_on']
+    except KeyError:
+        testing_on = False
+    except:
+        raise
+
+    # Get IR data
+    try:
+        ir_json_v6 = get_interpretation_request_json(ir_id, ir_version,
+                                                     token=auth_token,
+                                                     reports_v6=True,
+                                                     testing_on=testing_on)
+    except Exception as e:
+        return jsonify({'detail': str(e)})
+
+    # Check that an clinical report hasn't already been submitted
+    if num_existing_reports(ir_json_v6):
+        return jsonify({'detail': '{} existing clinical reports detected for interpretation request: {}'
+                       .format(num_existing_reports(ir_json_v6), _irvn)})
+
+    # Check there genuinely aren't any tier 1 or 2 variants for this IR
+    number_variants = number_tiered_variants(ir_json_v6)
+    if number_variants['T1'] != 0 or number_variants['T2'] != 0:
+        return jsonify({'detail': 'Cannot close case as there are tier 1 and/or tier 2 variants present: {}'
+                       .format(number_variants)})
+
     # Create clinical report object
-    cr = create_cr(interpretationRequestId=ir_id,
-                   interpretationRequestVersion=int(ir_version),
-                   reportingDate=request.json['reportingDate'],
-                   user=username,
-                   referenceDatabasesVersions=get_ref_db_versions(ir_json_v6),
-                   softwareVersions=gel_software_versions(ir_json_v6),
-                   genomicInterpretation="No tier 1 or 2 variants detected"
-                   )
+    try:
+        cr = create_cr(interpretationRequestId=ir_id,
+                       interpretationRequestVersion=int(ir_version),
+                       reportingDate=reportingDate,
+                       user=username,
+                       referenceDatabasesVersions=get_ref_db_versions(ir_json_v6),
+                       softwareVersions=gel_software_versions(ir_json_v6),
+                       genomicInterpretation="No tier 1 or 2 variants detected"
+                       )
+    except Exception as e:
+        return jsonify({'detail': str(e)})
 
     # Push clinical report to CIP-API
-    response = post_cr(clinical_report=cr, ir_json_v6=ir_json_v6,
-                       testing_on=request.json['testing_on'],
-                       token=request.headers['auth_token'])
-
-    return jsonify(response)
+    try:
+        response = post_cr(clinical_report=cr, ir_json_v6=ir_json_v6,
+                           testing_on=testing_on,
+                           token=auth_token)
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({'detail': str(e)})
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False, host='0.0.0.0')
