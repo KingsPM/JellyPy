@@ -8,6 +8,7 @@ from .auth import AuthenticatedCIPAPISession
 from .config import live_100k_data_base_url, beta_testing_base_url
 from .interpretation_requests import get_interpretation_request_list, get_variant_tier
 
+
 def create_cr(
         interpretationRequestId,
         interpretationRequestVersion,
