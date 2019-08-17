@@ -6,8 +6,7 @@ import datetime
 from protocols.reports_6_0_0 import ClinicalReport, InterpretedGenome, FamilyLevelQuestions, RareDiseaseExitQuestionnaire
 from .auth import AuthenticatedCIPAPISession
 from .config import live_100k_data_base_url, beta_testing_base_url
-from .interpretation_requests import get_interpretation_request_list
-
+from .interpretation_requests import get_interpretation_request_list, get_variant_tier
 
 def create_cr(
         interpretationRequestId,
@@ -268,3 +267,21 @@ def download_sum_findings(ir_id, ir_version, clinical_report_version=1):
     response.raise_for_status()
     # Return the html as a string ready for further processing or writing to file
     return response.text
+
+def number_tiered_variants(ir_json_v6):
+    """
+    This returns a dictionary of the number of tier 1, 2 and 3 variants for a given interpretation request
+
+    """
+    results = {'T1':0, 'T2': 0, 'T3': 0}
+
+    # Loop through interpreted genomes, and pull out variants from the genomics_england_tiering interpreted genome
+    interpreted_genomes = ir_json_v6['interpreted_genome']
+    for ig in interpreted_genomes:
+        if ig['interpreted_genome_data']['interpretationService'] == 'genomics_england_tiering':
+            variants = ig['interpreted_genome_data']['variants']
+            for variant in variants:
+                tier = get_variant_tier(variant)
+                results['T{}'.format(tier)] += 1
+
+    return results
