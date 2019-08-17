@@ -82,8 +82,8 @@ class AuthenticatedCIPAPISession(requests.Session):
 
         try:
             token = (self.post(
-                        cip_auth_url, data=(auth_credentials))
-                     .json()['token'])
+                cip_auth_url, data=(auth_credentials))
+                .json()['token'])
             decoded_token = jwt.decode(token, verify=False)
             self.headers.update({"Authorization": "JWT " + token})
             self.auth_time = datetime.fromtimestamp(decoded_token['orig_iat'])
@@ -149,3 +149,54 @@ class AuthenticatedOpenCGASession(requests.Session):
             self.authenticate(testing_on=testing_on)
         else:
             pass
+
+
+class AuthenticatedCVASession(requests.Session):
+    """Subclass of requests Session for accessing GEL openCGA instance."""
+
+    def __init__(self, token=None):
+
+        if token:
+            self.auth_time, self.auth_expires, self.username = self.unpack_jwt_token(token)
+        else:
+            token, self.auth_time, self.auth_expires, self.username = self.authenticate()
+
+        self.headers.update({"Accept": "application/json",
+                             "Content-Type": "application/json",
+                             "Authorization": "Bearer " + token
+                             })
+
+    @staticmethod
+    def unpack_jwt_token(token):
+        try:
+            decoded_token = jwt.decode(token, verify=False)
+            auth_time = datetime.fromtimestamp(decoded_token['iat'])
+            auth_expires = datetime.fromtimestamp(decoded_token['exp'])
+            username = decoded_token['username']
+
+        except (InvalidTokenError, DecodeError, ExpiredSignatureError):
+            raise Exception('Authentication Error')
+
+        # Check whether the token has expired
+        if datetime.now() > auth_expires - timedelta(minutes=10):
+            raise Exception('JWT token has expired')
+        else:
+            pass
+
+        return auth_time, auth_expires, username
+
+    def authenticate(self):
+
+        cva_auth_url = 'https://cva.genomicsengland.nhs.uk/cva/api/0/authentication'
+
+        try:
+            response = (self.post(cva_auth_url, data=json.dumps(auth_credentials)).json())
+            token = response['response'][0]['result'][0]['token']
+        except KeyError:
+            raise Exception('Authentication Error')
+        except:
+            raise
+
+        self.auth_time, self.auth_expires, self.username = self.unpack_jwt_token(token)
+
+        return token, self.auth_time, self.auth_expires, self.username
