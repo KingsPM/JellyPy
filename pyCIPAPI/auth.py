@@ -5,10 +5,9 @@ import json
 import jwt
 from jwt.exceptions import ExpiredSignatureError, DecodeError, InvalidTokenError
 import requests
-import maya
 from datetime import datetime, timedelta
 from .auth_credentials import auth_credentials
-from .config import live_100k_data_base_url, beta_testing_base_url
+from .config import live_100k_base_url, beta_testing_base_url, cva_base_url, opencga_base_url
 
 
 # get an authenticated session
@@ -75,7 +74,7 @@ class AuthenticatedCIPAPISession(requests.Session):
         # Use the correct url if using beta dataset for testing:
         if testing_on == False:
             # Live data
-            cip_auth_url = (live_100k_data_base_url + 'get-token/')
+            cip_auth_url = (live_100k_base_url + 'get-token/')
         else:
             # Beta test data
             cip_auth_url = (beta_testing_base_url + 'get-token/')
@@ -97,106 +96,89 @@ class AuthenticatedCIPAPISession(requests.Session):
         return self
 
 
-class AuthenticatedOpenCGASession(requests.Session):
-    """Subclass of requests Session for accessing GEL openCGA instance."""
-
-    def __init__(self):
-        """Init AuthenticatedOpenCGASession and run authenticate function.
-
-        Authentication credentials are stored in auth_credentials.py and are in
-        dictionary format:
-
-        auth_credentials = {"username": "username", "password": "password"}
-
+class AuthenticatedGelSession(requests.Session):
+    """Subclass of requests Session for all GEL auth classes."""
+    
+    def __init__(self, api_version, token=None):
+        """
+        
         """
         requests.Session.__init__(self)
-        self.host_url = ('https://apps.genomicsengland.nhs.uk/opencga/'
-                         'webservices/rest/v1')
-        self.authenticate()
 
-    def authenticate(self):
-        """Use auth_credentials to generate an authenticated session.
-
-        Uses the cip_auth_url hard coded in and credentials in the
-        auth_credentials file to retrieve an authentication token from the CIP
-        API.
-
-        Returns:
-            The current instance of AuthenticatedOpenCGASession with the sid
-            value as an attribute, plus the auth_time and auth_expires time.
-        """
-        opencga_auth_url = ('{host}/users/{username}/login'
-                            .format(host=self.host_url,
-                                    username=auth_credentials['username']))
-        try:
-            self.headers.update({"Accept": "application/json",
-                                 "Content-Type": "application/json",
-                                 "Authorization": "Bearer "})
-            sid_response = (self.post(opencga_auth_url,
-                                      data=json.dumps(auth_credentials))
-                            .json())
-            self.sid = sid_response['response'][0]['result'][0]['sessionId']
-            self.auth_time = maya.now()
-            self.auth_expires = self.auth_time.add(minutes=30)
-        except KeyError:
-            self.auth_time = False
-            print('Authentication Error')
-        return self
-
-    def check_auth(self, testing_on=False):
-        """Check whether the session is still authenticated."""
-        if maya.now() > self.auth_expires():
-            self.authenticate(testing_on=testing_on)
-        else:
-            pass
-
-
-class AuthenticatedCVASession(requests.Session):
-    """Subclass of requests Session for accessing GEL openCGA instance."""
-
-    def __init__(self, token=None):
+        self.headers.update({
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        })
 
         if token:
-            self.auth_time, self.auth_expires, self.username = self.unpack_jwt_token(token)
+            token_data = self.unpack_jwt_token(token)
         else:
-            token, self.auth_time, self.auth_expires, self.username = self.authenticate()
+            token, token_data = self.authenticate()
 
-        self.headers.update({"Accept": "application/json",
-                             "Content-Type": "application/json",
-                             "Authorization": "Bearer " + token
-                             })
-
+        self.headers.update({
+            "Authorization": "Bearer " + token
+        })
+        
     @staticmethod
     def unpack_jwt_token(token):
         try:
             decoded_token = jwt.decode(token, verify=False)
-            auth_time = datetime.fromtimestamp(decoded_token['iat'])
-            auth_expires = datetime.fromtimestamp(decoded_token['exp'])
-            username = decoded_token['username']
-
+            token_data = {
+                'iat': datetime.fromtimestamp(decoded_token['iat']),
+                'exp': datetime.fromtimestamp(decoded_token['exp']),
+                'sub': decoded_token['sub'],
+            }
         except (InvalidTokenError, DecodeError, ExpiredSignatureError):
-            raise Exception('Authentication Error')
+            raise Exception('Invalid Token')
 
         # Check whether the token has expired
-        if datetime.now() > auth_expires - timedelta(minutes=10):
+        if datetime.now() > token_data['exp'] - timedelta(minutes=10):
             raise Exception('JWT token has expired')
         else:
             pass
 
-        return auth_time, auth_expires, username
+        return token_data
+
 
     def authenticate(self):
-
-        cva_auth_url = 'https://cva.genomicsengland.nhs.uk/cva/api/0/authentication'
-
+        
         try:
-            response = (self.post(cva_auth_url, data=json.dumps(auth_credentials)).json())
+            response = self.post(self.auth_url, data=json.dumps(auth_credentials),headers=self.headers).json()
             token = response['response'][0]['result'][0]['token']
         except KeyError:
             raise Exception('Authentication Error')
         except:
             raise
+            
+        token_data = self.unpack_jwt_token(token)
 
-        self.auth_time, self.auth_expires, self.username = self.unpack_jwt_token(token)
+        return token, token_data
 
-        return token, self.auth_time, self.auth_expires, self.username
+
+
+class AuthenticatedOpenCGASession(AuthenticatedGelSession):
+    """ TO DO """
+    
+    def __init__(self, api_version='v1', token=None):
+        
+        self.auth_url = '{base_url}{api_version}/users/{username}/login'.format(
+                                        base_url=opencga_base_url,
+                                        api_version=api_version,
+                                        username=auth_credentials['username'])
+        
+        AuthenticatedGelSession.__init__(self, api_version=api_version, token=token)
+    
+
+
+class AuthenticatedCVASession(AuthenticatedGelSession):
+    """ TO DO """
+    
+    def __init__(self, api_version=0, token=None):
+        
+        self.auth_url = '{base_url}{api_version}/authentication'.format(
+                                                        base_url=cva_base_url, 
+                                                        api_version=api_version)
+        
+        AuthenticatedGelSession.__init__(self, api_version=api_version, token=token)                                                        
+                                                        
+    

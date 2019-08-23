@@ -1,27 +1,46 @@
 from .auth import AuthenticatedCVASession
+from .config import cva_base_url
 
-def get_service_status():
 
-    s = AuthenticatedCVASession()
+def get_cva_service_status(api_version=0):
+    """ [TODO: Description]
+
+    Args:
+        [TODO: Arguments]
+    """
+    s = AuthenticatedCVASession(api_version=0)
     
-    url = 'https://cva.genomicsengland.nhs.uk/cva/api/0/system-status'
+    url = cva_base_url + str(api_version) + '/system-status'
 
     r = s.get(url)
 
     return r.json()
 
-def get_auth_token(auth_credentials):
+def get_cva_auth_token(api_version=0):
+    """ [TODO: Description]
 
-    s = AuthenticatedCVASession(auth_credentials=auth_credentials)
+    Args:
+        [TODO: Arguments]
+    """
 
-    return s.headers['Authorization']
+    s = AuthenticatedCVASession(api_version=0)
 
-def get_case(case_id, token=None):
+    return s.headers['Authorization'].strip('Bearer ')
 
-    s = AuthenticatedCVASession(token=token)
+def get_cva_case(case_id, api_version=0, token=None):
+    """ [TODO: Description]
 
-    url = 'https://cva.genomicsengland.nhs.uk/cva/api/0/cases/{case_id}'.format(case_id=case_id)
+    Args:
+        [TODO: Arguments]
+    """
 
-    r = s.get(url)
+    s = AuthenticatedCVASession(api_version=0, token=token)
+
+    search_url = '{base_url}{api_version}/cases/{case_id}'.format(base_url=cva_base_url, 
+                                                                  api_version=api_version,
+                                                                  case_id=case_id)
+    
+
+    r = s.get(search_url)
 
     return r.json()

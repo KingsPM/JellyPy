@@ -4,6 +4,18 @@ from .auth import AuthenticatedOpenCGASession
 import os
 
 
+def get_opencga_auth_token(api_version=0):
+    """ [TODO: Description]
+
+    Args:
+        [TODO: Arguments]
+    """
+
+    s = AuthenticatedOpenCGASession(api_version='v1')
+
+    return s.headers['Authorization'].strip('Bearer ')
+    
+
 def get_study_id(study_type, assembly=None, sample_type=None):
     """Return study_id for the given study_type, sample_type and assembly.
 
@@ -73,7 +85,7 @@ def find_file_id(study_id, file_format, file_name):
             print('Unable to find file {file_idname}'
                   .format(filename=file_name))
     else:
-        print('Search for file {file_name} failed'.format(filename=file_name))
+        print('Search for file {file_name} failed'.format(file_name=file_name))
     return file_id
 
 
